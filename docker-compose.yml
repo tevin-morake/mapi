@@ -1,0 +1,28 @@
+version: 3
+
+services:
+    mapi:
+        build: 
+        ports: 
+            - 8080:8080
+        depends_on:
+            - db
+        restart: always
+        environment: 
+            DB_HOST: postgresdb
+            DB_DRIVER: postgres
+            DB_PORT: 5432
+            DB_USER: postgres
+            DB_PASSWORD: postgres
+            DB_NAME: mapi-logs
+            SENDGRID_API_KEY: xxxxxx
+    postgresdb:
+        image: postgres
+        environment: 
+            POSTGRES_PASSWORD: postgres
+            POSTGRES_USER: postgres
+            POSTGRES_DB: mapi-logs
+        volumes: 
+            - ./postgres-mapi-data:/var/lib/postgresql/data
+        ports: 
+            - '5432':'5432'

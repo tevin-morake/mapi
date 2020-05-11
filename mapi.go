@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Rapidtrade/rapi/tools"
 	"github.com/tevin-morake/mapi/controllers"
 )
 
@@ -15,16 +16,24 @@ var (
 	port        string
 	version     = "1"
 	showversion bool
+	stdout      bool
+	t           *tools.Tools
 )
 
 func init() {
-	flag.StringVar(&port, "port", "8082", "Use port 80 in production")
+	flag.StringVar(&port, "port", "80", "Use port 80 in production")
 	flag.BoolVar(&showversion, "version", false, "Show current version")
 	flag.Parse()
 
 	if showversion {
 		fmt.Printf("Current Mail API Version : %s \n", version)
 		os.Exit(0)
+	}
+
+	//Initialize a tools service we can use to connect to the db throughout the app
+	t, err = tools.NewTools(stdout, "logs", "logs", "mapi")
+	if err != nil {
+		panic(err)
 	}
 }
 
@@ -41,12 +50,14 @@ func main() {
 		ReadTimeout:  900 * time.Second,
 		WriteTimeout: 900 * time.Second,
 	}
-	srv.ListenAndServe()
+	if err := srv.ListenAndServe(); err != nil {
+		panic(err)
+	}
 }
 
 //PostEmail runs a controller method that sends an email to an address specified in the request body
 func PostEmail(resp http.ResponseWriter, req *http.Request) {
-	controllers.SendEmail(resp, req)
+	controllers.SendEmail(resp, req, t)
 }
 
 //handleCorsMiddleWare is used to handle preflight CORS requests
@@ -64,6 +75,13 @@ func handleCorsMiddleWare(h http.HandlerFunc) http.HandlerFunc {
 			res.WriteHeader(http.StatusOK)
 			return
 		}
+		// Check if  request has basic auth . If not, deny request further access
+		userid, password, ok := req.BasicAuth()
+		if !ok || userid == "" || password == "" {
+			http.Error(res, "401 - unauthorized", http.StatusUnauthorized)
+			return
+		}
+
 		h.ServeHTTP(res, req)
 	}
 }

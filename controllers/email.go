@@ -10,6 +10,7 @@ import (
 
 	"github.com/sendgrid/sendgrid-go"
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
+	"github.com/tevin-morake/mapi/tools"
 )
 
 //EmailBody holds  info about the email to be sent
@@ -20,7 +21,7 @@ type EmailBody struct {
 }
 
 //SendEmail is responsible for sending out emails to email address supplied to it
-func SendEmail(w http.ResponseWriter, r *http.Request) {
+func SendEmail(w http.ResponseWriter, r *http.Request, t *tools.Tools) {
 	// Get body into a byte array
 	body, ioerr := ioutil.ReadAll(io.LimitReader(r.Body, 104857600))
 	if ioerr != nil {
@@ -52,6 +53,22 @@ func SendEmail(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Error sending email to %s : %s", emailbody.Email, err.Error()), http.StatusBadRequest)
 		return
 	} else {
+		//connect to Postgres db
+		if err := t.OpenDB(w); err != nil {
+			http.Error(w, fmt.Sprintf("Error opening database : %s", err.Error()), http.StatusBadRequest)
+			return
+		}
+
+		//execute sql
+		sqlStatement := "INSERT INTO logs (logtype, email, subject, body) VALUES ($1, $2, $3, $4)"
+		statementValues := []interface{"INFO",emailbody.Email, emailbody.Subject, emailbody.Body}
+		
+		if err = t.ExecuteSQL(sqlStatement, statementValues); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		//Send response to user
 		w.Header().Set("Content-Type", "text/json; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		if err := json.NewEncoder(w).Encode(response); err != nil {
